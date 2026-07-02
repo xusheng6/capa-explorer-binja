@@ -1,0 +1,25 @@
+{
+  "pluginmetadataversion": 2,
+  "name": "capa explorer",
+  "type": ["ui"],
+  "api": ["python3"],
+  "description": "Identify capabilities in executable files using FLARE's capa framework.",
+  "longdescription": "capa explorer integrates the FLARE team's open-source [capa](https://github.com/mandiant/capa) framework with Binary Ninja. Run capa against the current BinaryView to identify program capabilities (e.g. installs services, communicates over HTTP, is a backdoor), then click matches to navigate the disassembly and highlight the features that triggered them. A Rule Generator tab helps build and test new capa rules from features extracted from the current function.\n\nThis is a UI plugin only. The analysis engine and the Binary Ninja feature extractor are provided by the `flare-capa` Python package, which is installed automatically from `requirements.txt`. You also need a local copy of the [capa rules](https://github.com/mandiant/capa-rules/releases) matching your installed capa version; the plugin will prompt for the directory on first run.",
+  "license": {
+    "name": "Apache-2.0",
+    "text": "Licensed under the Apache License, Version 2.0. See https://www.apache.org/licenses/LICENSE-2.0 and the bundled LICENSE file."
+  },
+  "platforms": ["Darwin", "Linux", "Windows"],
+  "installinstructions": {
+    "Darwin": "Binary Ninja installs `flare-capa` from requirements.txt automatically. On first run, open the capa explorer sidebar and point it at a capa rules directory.",
+    "Linux": "Binary Ninja installs `flare-capa` from requirements.txt automatically. On first run, open the capa explorer sidebar and point it at a capa rules directory.",
+    "Windows": "Binary Ninja installs `flare-capa` from requirements.txt automatically. On first run, open the capa explorer sidebar and point it at a capa rules directory."
+  },
+  "dependencies": {
+    "pip": ["flare-capa>=9.4.0"]
+  },
+  "version": "1.0.0",
+  "author": "Mandiant (FLARE)",
+  "minimumbinaryninjaversion": 4000,
+  "url": "https://github.com/mandiant/capa"
+}
