@@ -73,11 +73,17 @@ directory (and remembers it via Binary Ninja settings).
 
 ## Usage
 
-1. Open a supported file (x86 / x86-64 PE, ELF, or shellcode) and let analysis finish.
-2. Open the **capa explorer** panel from the sidebar.
-3. Click **Analyze** on the **Program Analysis** tab; try double-clicking addresses,
-   ticking checkboxes, the two checkboxes, and search. Then try the **Rule Generator**
-   tab on a function.
+1. Get the capa rules. capa does **not** ship rules with the `flare-capa` package,
+   so you need a local copy: download and extract the
+   [official capa rules](https://github.com/mandiant/capa-rules/releases) release that
+   matches your installed capa version (`capa --version`).
+2. Open a supported file (x86 / x86-64 PE, ELF, or shellcode) and let analysis finish.
+3. Open the **capa explorer** panel from the sidebar.
+4. Click **Analyze** on the **Program Analysis** tab. The first time, the plugin asks
+   for your capa rules directory (from step 1) and remembers it in Binary Ninja's
+   settings; you can change it later via the **Settings** button. Then try
+   double-clicking addresses, ticking checkboxes, the two checkboxes, and search, and
+   the **Rule Generator** tab on a function.
 
 ## Notes / differences from the IDA plugin
 
