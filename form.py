@@ -212,15 +212,39 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         self._status_analysis = "Click Analyze to get started..."
         self._status_rulegen = "Click Analyze to get started..."
 
+        # lifecycle + re-entrancy guards for background analysis
+        self._alive = True
+        self._analysis_running = False
+
         self._build_interface()
 
         UIContext.registerNotification(self)
 
     def __del__(self):
+        self._alive = False
         try:
             UIContext.unregisterNotification(self)
         except Exception:
             pass
+
+    def _post(self, fn):
+        """run fn on the UI thread, skipping it if this widget was torn down.
+
+        Background tasks capture ``self``; if the view/BinaryView is closed while
+        a task is still running, the deferred callback would otherwise touch a
+        deleted C++ widget and hard-crash Binary Ninja.
+        """
+
+        def guarded():
+            if not getattr(self, "_alive", False):
+                return
+            try:
+                fn()
+            except RuntimeError:
+                # the underlying C++ object was deleted while the task ran
+                pass
+
+        execute_on_main_thread(guarded)
 
     # ------------------------------------------------------------------ UI
     def _build_interface(self):
@@ -474,6 +498,13 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         return choice == 0
 
     def analyze_program(self):
+        if self._analysis_running:
+            _show_message(
+                "capa explorer",
+                "capa analysis is already running; please wait for it to finish.",
+            )
+            return
+
         rule_path = self._ensure_rule_path()
         if rule_path is None:
             self.set_view_status_label("Click Analyze to get started...")
@@ -492,6 +523,7 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         self.set_view_status_label("Analyzing...")
 
         by_function = self.view_show_results_by_function.isChecked()
+        self._analysis_running = True
         task = _BackgroundTask(
             "capa: analyzing program...",
             lambda t: self._run_program_analysis(t, rule_path, from_cache, by_function),
@@ -521,7 +553,7 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
                         "capa explorer",
                         "Cached results are not valid. Please reanalyze your program.",
                     )
-                    execute_on_main_thread(lambda: self._fail_analysis())
+                    self._post(lambda: self._fail_analysis())
                     return
 
                 status_rules = f"{rule_path} ({ruleset.source_rule_count} rules)"
@@ -590,18 +622,16 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
                 self.program_analysis_ruleset_cache = ruleset
 
             self._status_analysis = status
-            execute_on_main_thread(
-                lambda: self._finish_program_analysis(status, by_function)
-            )
+            self._post(lambda: self._finish_program_analysis(status, by_function))
         except UserCancelledError:
             logger.info("user cancelled analysis")
-            execute_on_main_thread(
-                lambda: self._fail_analysis("Click Analyze to get started...")
-            )
+            self._post(lambda: self._fail_analysis("Click Analyze to get started..."))
         except Exception as e:
             logger.exception("failed to analyze program: %s", e)
             _show_message("capa explorer", f"Failed to analyze program: {e}")
-            execute_on_main_thread(lambda: self._fail_analysis())
+            self._post(lambda: self._fail_analysis())
+        finally:
+            self._analysis_running = False
 
     def _finish_program_analysis(self, status: str, by_function: bool):
         try:
@@ -628,6 +658,13 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
 
     # ----------------------------------------------------------- rule generator
     def analyze_function(self):
+        if self._analysis_running:
+            _show_message(
+                "capa explorer",
+                "capa analysis is already running; please wait for it to finish.",
+            )
+            return
+
         rule_path = self._ensure_rule_path()
         if rule_path is None:
             self.set_view_status_label("Click Analyze to get started...")
@@ -636,7 +673,10 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         self.reset_function_analysis_views(is_analyze=True)
         self.set_view_status_label("Loading...")
 
+        # UIContext access must happen on the UI thread, so resolve the current
+        # address here and hand it to the worker.
         ea = helpers.get_current_address()
+        self._analysis_running = True
         task = _BackgroundTask(
             "capa: extracting function features...",
             lambda t: self._run_function_analysis(t, rule_path, ea),
@@ -725,20 +765,20 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
                 else None
             )
             status = f"capa rules: {rule_path}"
-            execute_on_main_thread(
+            self._post(
                 lambda: self._finish_function_analysis(
                     func_address, all_file_features, all_function_features, status
                 )
             )
         except UserCancelledError:
             logger.info("user cancelled analysis")
-            execute_on_main_thread(
-                lambda: self._fail_analysis("Click Analyze to get started...")
-            )
+            self._post(lambda: self._fail_analysis("Click Analyze to get started..."))
         except Exception as e:
             logger.exception("failed to analyze function: %s", e)
             _show_message("capa explorer", f"Failed to analyze function: {e}")
-            execute_on_main_thread(lambda: self._fail_analysis())
+            self._post(lambda: self._fail_analysis())
+        finally:
+            self._analysis_running = False
 
     def _finish_function_analysis(
         self, func_address, all_file_features, all_function_features, status
