@@ -59,7 +59,7 @@ from . import helpers
 from capa.rules import Rule
 from capa.engine import FeatureSet
 from capa.rules.cache import compute_ruleset_cache_identifier
-from .qt import QtGui, QtCore, QtWidgets
+from .qt import QAction, QtGui, QtCore, QtWidgets
 from .view import (
     CapaExplorerQtreeView,
     CapaExplorerRulegenEditor,
@@ -264,6 +264,12 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         self.view_tabs.addTab(self._build_rulegen_tab(), "Rule Generator")
         self.view_tabs.currentChanged.connect(self.slot_tabview_change)
 
+        # hamburger menu in the tab bar's top-right corner: program-analysis
+        # view options plus Settings
+        self.view_tabs.setCornerWidget(
+            self._build_hamburger_menu(), QtCore.Qt.TopRightCorner
+        )
+
         self.view_status_label = QtWidgets.QLabel(self._status_analysis)
         self.view_status_label.setAlignment(QtCore.Qt.AlignLeft)
         self.view_status_label.setWordWrap(True)
@@ -271,20 +277,17 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         # buttons
         self.view_analyze_button = QtWidgets.QPushButton("Analyze")
         self.view_reset_button = QtWidgets.QPushButton("Reset Selections")
-        self.view_settings_button = QtWidgets.QPushButton("Settings")
-        self.view_save_button = QtWidgets.QPushButton("Save")
+        self.view_save_button = QtWidgets.QPushButton("Export")
 
         self.view_analyze_button.clicked.connect(self.slot_analyze)
         self.view_reset_button.clicked.connect(self.slot_reset)
-        self.view_settings_button.clicked.connect(self.slot_settings)
         self.view_save_button.clicked.connect(self.slot_save)
 
         button_layout = QtWidgets.QHBoxLayout()
+        button_layout.addWidget(self.view_save_button)
         button_layout.addWidget(self.view_analyze_button)
         button_layout.addWidget(self.view_reset_button)
-        button_layout.addWidget(self.view_settings_button)
         button_layout.addStretch(3)
-        button_layout.addWidget(self.view_save_button, alignment=QtCore.Qt.AlignRight)
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
@@ -293,34 +296,48 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         layout.addWidget(self.view_status_label)
         self.setLayout(layout)
 
-    def _build_program_tab(self) -> QtWidgets.QWidget:
-        self.view_limit_results_by_function = QtWidgets.QCheckBox(
-            "Limit results to current function"
+    def _build_hamburger_menu(self) -> QtWidgets.QToolButton:
+        """build the top-right corner menu for view options and Settings"""
+        # kept as QActions (not checkboxes) so isChecked()/setChecked() still work
+        # for the rest of the code that reads these toggles.
+        self.view_limit_results_by_function = QAction(
+            "Limit results to current function", self
         )
-        self.view_limit_results_by_function.stateChanged.connect(
+        self.view_limit_results_by_function.setCheckable(True)
+        self.view_limit_results_by_function.toggled.connect(
             self.slot_checkbox_limit_by_changed
         )
 
-        self.view_show_results_by_function = QtWidgets.QCheckBox(
-            "Show matches by function"
-        )
-        self.view_show_results_by_function.stateChanged.connect(
+        self.view_show_results_by_function = QAction("Show matches by function", self)
+        self.view_show_results_by_function.setCheckable(True)
+        self.view_show_results_by_function.toggled.connect(
             self.slot_checkbox_show_results_by_function_changed
         )
 
-        checkbox_layout = QtWidgets.QHBoxLayout()
-        checkbox_layout.addWidget(self.view_limit_results_by_function)
-        checkbox_layout.addWidget(self.view_show_results_by_function)
-        checkboxes = QtWidgets.QWidget()
-        checkboxes.setLayout(checkbox_layout)
+        self.view_settings_action = QAction("Settings…", self)
+        self.view_settings_action.triggered.connect(self.slot_settings)
 
+        menu = QtWidgets.QMenu(self)
+        menu.addAction(self.view_limit_results_by_function)
+        menu.addAction(self.view_show_results_by_function)
+        menu.addSeparator()
+        menu.addAction(self.view_settings_action)
+
+        button = QtWidgets.QToolButton(self)
+        button.setText("☰")  # hamburger glyph
+        button.setToolTip("View options")
+        button.setAutoRaise(True)
+        button.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+        button.setMenu(menu)
+        return button
+
+    def _build_program_tab(self) -> QtWidgets.QWidget:
         self.view_search_bar = QtWidgets.QLineEdit()
         self.view_search_bar.setPlaceholderText("search...")
         self.view_search_bar.setClearButtonEnabled(True)
         self.view_search_bar.textChanged.connect(self.slot_limit_results_to_search)
 
         layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(checkboxes)
         layout.addWidget(self.view_search_bar)
         layout.addWidget(self.view_tree)
 

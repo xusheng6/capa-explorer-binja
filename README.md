@@ -30,12 +30,12 @@ of how (or whether) you use capa from the command line.
   rule → function → basic block / instruction → feature.
 - Double-click the **Address** column to navigate the active view to that address.
 - Tick a row's checkbox to highlight the corresponding instruction in the disassembly.
-- **Limit results to current function** filters the tree to the function under the cursor;
-  it follows you as you navigate.
-- **Show matches by function** regroups matches under the functions that contain them.
+- From the **☰** menu (top-right of the sidebar): **Limit results to current function**
+  filters the tree to the function under the cursor and follows you as you navigate, and
+  **Show matches by function** regroups matches under the functions that contain them.
 - Search to filter by rule name or any feature text (e.g. `characteristic(nzxor)`).
 - Right-click a function row to rename it (pushed to Binary Ninja).
-- Hover a rule to see its source; **Save** exports the results as capa JSON.
+- Hover a rule to see its source; **Export** saves the results as capa JSON.
 - Results are cached inside the `.bndb` and reused across sessions.
 
 **Rule Generator tab**
@@ -45,7 +45,7 @@ of how (or whether) you use capa from the command line.
 - Drag-and-drop to build your statement hierarchy; the preview shows live YAML.
 - The preview border turns green when the rule compiles and matches the current function,
   yellow when it compiles but doesn't match, and red on a compile error.
-- **Save** writes the rule to a `.yml` file.
+- **Export** writes the rule to a `.yml` file.
 
 ## Installation
 
@@ -83,9 +83,9 @@ directory (and remembers it via Binary Ninja settings).
 3. Open the **capa explorer** panel from the sidebar.
 4. Click **Analyze** on the **Program Analysis** tab. The first time, the plugin asks
    for your capa rules directory (from step 1) and remembers it in Binary Ninja's
-   settings; you can change it later via the **Settings** button. Then try
-   double-clicking addresses, ticking checkboxes, the two checkboxes, and search, and
-   the **Rule Generator** tab on a function.
+   settings; you can change it later from the **☰** menu → **Settings**. Then try
+   double-clicking addresses, ticking a row's checkbox to highlight it, the **☰** view
+   options, and search — and the **Rule Generator** tab on a function.
 
 ## Notes / differences from the IDA plugin
 
