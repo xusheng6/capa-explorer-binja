@@ -12,6 +12,8 @@ It is the Binary Ninja counterpart to the
 with a **Program Analysis** view and a **Rule Generator**, built around Binary Ninja
 idioms (sidebar widget, background tasks, `UIContext` navigation, `.bndb` metadata).
 
+![capa explorer Program Analysis tab](docs/program-analysis.png)
+
 ## Relationship to capa
 
 This repository ships **only the UI**. The capability-matching engine and the Binary
