@@ -415,11 +415,22 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         if path and Path(path).exists():
             return Path(path)
 
+        # Binary Ninja's native directory picker doesn't show explanatory text,
+        # so tell the user what to select (and where to get rules) first. This
+        # runs on the main thread, so the message box is modal and blocks until
+        # dismissed before the picker opens.
         binaryninja.log_warn(
             f"capa: select a directory of capa rules. Download the official rules from {CAPA_OFFICIAL_RULESET_URL}"
         )
+        binaryninja.interaction.show_message_box(
+            "capa explorer",
+            "capa needs a directory of rules to analyze with.\n\n"
+            "Click OK, then choose your local capa-rules directory.\n\n"
+            "If you don't have the rules yet, download and extract the release that matches "
+            f"your capa version from:\n{CAPA_OFFICIAL_RULESET_URL}",
+        )
         chosen = binaryninja.interaction.get_directory_name_input(
-            "Select a capa rules directory"
+            "Select your capa rules directory"
         )
         if not chosen:
             _show_message(
