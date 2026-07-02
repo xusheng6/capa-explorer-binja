@@ -113,6 +113,11 @@ Behavioral notes:
 - **No rebase hook** — reanalyze manually if you rebase.
 - **Architecture support** — x86 (32- and 64-bit), matching the IDA plugin.
 
+## Credits
+
+The sidebar icon is capa's project icon (`.github/icon.png` from
+[mandiant/capa](https://github.com/mandiant/capa)), reused under the Apache-2.0 license.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
