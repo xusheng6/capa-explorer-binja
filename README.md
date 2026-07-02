@@ -69,7 +69,7 @@ directory (and remembers it via Binary Ninja settings).
 
    The plugin loads as a Python package (Binary Ninja runs its `__init__.py`), so the
    directory name must be a valid Python identifier (e.g. `capa_explorer`, not
-   `capa-explorer-binaryninja`).
+   `capa-explorer-binja`).
 
 ## Usage
 
