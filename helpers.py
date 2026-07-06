@@ -140,19 +140,6 @@ def navigate(bv: BinaryView, ea: int):
     ctx.navigateForBinaryView(bv, ea)
 
 
-def set_highlight(bv: BinaryView, ea: int, color: HighlightStandardColor):
-    """apply a user instruction highlight at ea across every function containing it"""
-    for func in bv.get_functions_containing(ea):
-        try:
-            func.set_user_instr_highlight(ea, color)
-        except Exception as e:
-            logger.debug("failed to highlight 0x%x: %s", ea, e)
-
-
-def clear_highlight(bv: BinaryView, ea: int):
-    set_highlight(bv, ea, HighlightStandardColor.NoHighlightColor)
-
-
 def get_current_address() -> Optional[int]:
     """return the address currently shown in the active view, or None"""
     try:

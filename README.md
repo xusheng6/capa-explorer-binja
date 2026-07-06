@@ -80,7 +80,8 @@ directory (and remembers it via Binary Ninja settings).
    [official capa rules](https://github.com/mandiant/capa-rules/releases) release that
    matches your installed capa version (`capa --version`).
 2. Open a supported file (x86 / x86-64 PE, ELF, or shellcode) and let analysis finish.
-3. Open the **capa explorer** panel from the sidebar.
+3. Open the **capa explorer** panel from the sidebar (or right-click anywhere →
+   **capa → Open capa explorer**).
 4. Click **Analyze** on the **Program Analysis** tab. The first time, the plugin asks
    for your capa rules directory (from step 1) and remembers it in Binary Ninja's
    settings; you can change it later from the **☰** menu → **Settings**. Then try
@@ -97,7 +98,7 @@ implementation line for line:
 | Host UI | `idaapi.PluginForm` docked window | `SidebarWidget` |
 | Long-running analysis | IDA wait box on the UI thread | `BackgroundTaskThread` + `execute_on_main_thread` |
 | Navigation | `idc.jumpto` | `UIContext.navigateForBinaryView` |
-| Highlighting | `idc.set_color` (RGB, restores prior color) | `Function.set_user_instr_highlight` (standard yellow) |
+| Highlighting | `idc.set_color` (RGB, restores prior color) | `Function.set_user_instr_highlight` (yellow, restores prior highlight) |
 | Result caching | IDA netnode | `BinaryView` metadata in the `.bndb` |
 | Settings | `ida_settings` | `binaryninja.Settings` (also in Preferences) |
 | Location/rename events | `idaapi.UI_Hooks` | `UIContextNotification` |
@@ -105,10 +106,9 @@ implementation line for line:
 
 Behavioral notes:
 
-- **Highlight restore.** Binary Ninja's instruction highlight is keyed by
-  `(function, architecture)` and isn't cheaply readable, so checking a row applies a
-  standard yellow highlight and unchecking clears it (rather than restoring a prior user
-  highlight).
+- **Highlighting.** Checking a row snapshots any existing highlight, applies a yellow
+  marker, and restores the original when unchecked; overlapping features at one address
+  are reference-counted, and all applied highlights are restored on teardown/reanalysis.
 - **No "analyze on plugin start" option** — Binary Ninja creates the sidebar widget
   lazily per view; click **Analyze** (the cached-results prompt still appears when a
   `.bndb` already contains capa results).

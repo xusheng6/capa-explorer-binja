@@ -24,9 +24,15 @@ from capa.features.extractors.base_extractor import FunctionHandle
 class CapaExplorerFeatureExtractor(BinjaFeatureExtractor):
     """BinjaFeatureExtractor that reports progress and supports cancellation.
 
-    The IDA plugin uses a Qt signal driven by IDA's wait box; in Binary Ninja
-    we drive the progress text and cancellation flag of a BackgroundTaskThread
-    instead, so we accept plain callbacks here to stay decoupled from the UI.
+    Cancellation is checked at the start of every generator method (not just
+    once per function), so a large function can be interrupted mid-extraction
+    rather than only at function boundaries. When a function total has been set
+    via ``set_function_progress_total`` the progress callback also reports a
+    determinate "(N of M)" count.
+
+    We drive the progress text / cancellation flag of a BackgroundTaskThread
+    rather than IDA's wait box, so we accept plain callbacks to stay decoupled
+    from the UI.
     """
 
     def __init__(
@@ -38,13 +44,72 @@ class CapaExplorerFeatureExtractor(BinjaFeatureExtractor):
         super().__init__(bv)
         self._progress = progress
         self._is_cancelled = is_cancelled
+        self._function_total: Optional[int] = None
+        self._function_count = 0
 
-    def _tick(self, text: str):
+    # ------------------------------------------------------------------ progress
+    def set_function_progress_total(self, total: int):
+        """enable determinate per-function progress ("N of M")"""
+        self._function_total = total
+        self._function_count = 0
+
+    def _check_cancel(self):
         if self._is_cancelled is not None and self._is_cancelled():
             raise UserCancelledError("user cancelled")
+
+    def _report(self, text: str):
         if self._progress is not None:
-            self._progress(f"extracting features from {text}")
+            self._progress(text)
+
+    def _report_function(self, fh: FunctionHandle):
+        addr = int(fh.address)
+        if self._function_total is not None:
+            self._report(
+                f"extracting features from function at {hex(addr)} "
+                f"({self._function_count + 1} of {self._function_total})"
+            )
+            self._function_count += 1
+        else:
+            self._report(f"extracting features from function at {hex(addr)}")
+
+    # ---------------------------------------------------- wrapped extractor calls
+    def extract_global_features(self):
+        self._check_cancel()
+        yield from super().extract_global_features()
+
+    def extract_file_features(self):
+        self._check_cancel()
+        yield from super().extract_file_features()
+
+    def get_functions(self):
+        self._check_cancel()
+        for function in super().get_functions():
+            self._check_cancel()
+            yield function
 
     def extract_function_features(self, fh: FunctionHandle):
-        self._tick(f"function at {hex(fh.inner.start)}")
-        return super().extract_function_features(fh)
+        self._check_cancel()
+        self._report_function(fh)
+        for feature in super().extract_function_features(fh):
+            self._check_cancel()
+            yield feature
+
+    def get_basic_blocks(self, fh):
+        self._check_cancel()
+        for bb in super().get_basic_blocks(fh):
+            self._check_cancel()
+            yield bb
+
+    def extract_basic_block_features(self, fh, bbh):
+        self._check_cancel()
+        yield from super().extract_basic_block_features(fh, bbh)
+
+    def get_instructions(self, fh, bbh):
+        self._check_cancel()
+        for insn in super().get_instructions(fh, bbh):
+            self._check_cancel()
+            yield insn
+
+    def extract_insn_features(self, fh, bbh, ih):
+        self._check_cancel()
+        yield from super().extract_insn_features(fh, bbh, ih)

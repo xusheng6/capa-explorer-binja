@@ -21,6 +21,7 @@ functions -- now go through capa.binja.plugin.helpers using the BinaryView the
 model is constructed with.
 """
 
+import logging
 from typing import Optional
 from collections import deque
 
@@ -50,6 +51,8 @@ from .item import (
 )
 from capa.features.address import Address, AbsoluteVirtualAddress
 
+logger = logging.getLogger(__name__)
+
 
 class CapaExplorerDataModel(QtCore.QAbstractItemModel):
     """model for displaying hierarchical results return by capa"""
@@ -68,6 +71,11 @@ class CapaExplorerDataModel(QtCore.QAbstractItemModel):
         self.root_node = CapaExplorerDataItem(
             None, ["Rule Information", "Address", "Details"]
         )
+        # tracks instruction highlights we applied so we can restore the user's
+        # prior highlight when unchecked. keyed by (function_start, address);
+        # value is {"previous": <HighlightColor>, "count": <int>} so overlapping
+        # features at one address are reference-counted.
+        self._highlight_state: dict[tuple[int, int], dict] = {}
 
     def reset(self):
         """reset UI elements (e.g. checkboxes, highlights)"""
@@ -230,10 +238,10 @@ class CapaExplorerDataModel(QtCore.QAbstractItemModel):
     def reset_highlighting(self, item, checked):
         """toggle the Binary Ninja instruction highlight for an item's address.
 
-        Unlike the IDA plugin, we don't preserve a pre-existing user highlight:
-        Binary Ninja's instruction highlight is keyed by (function, arch) and
-        isn't cheaply readable, so checking sets a yellow highlight and
-        unchecking clears it.
+        Checking snapshots and replaces the user's existing highlight with our
+        marker color; unchecking restores exactly what was there before. Multiple
+        features at one address are reference-counted so restore only happens
+        once the last one is unchecked.
         """
         if not isinstance(
             item,
@@ -248,10 +256,49 @@ class CapaExplorerDataModel(QtCore.QAbstractItemModel):
         if item.location is None:
             return
 
-        if checked:
-            helpers.set_highlight(self.bv, item.location, helpers.DEFAULT_HIGHLIGHT)
-        else:
-            helpers.clear_highlight(self.bv, item.location)
+        self._set_highlight(item.location, checked)
+
+    def _set_highlight(self, ea: int, enabled: bool):
+        funcs = self.bv.get_functions_containing(ea)
+        if not funcs:
+            return
+        func = funcs[0]
+        key = (int(func.start), int(ea))
+
+        try:
+            if enabled:
+                state = self._highlight_state.get(key)
+                if state is not None:
+                    state["count"] += 1
+                    return
+                previous = func.get_instr_highlight(ea)
+                self._highlight_state[key] = {"previous": previous, "count": 1}
+                func.set_user_instr_highlight(ea, helpers.DEFAULT_HIGHLIGHT)
+            else:
+                state = self._highlight_state.get(key)
+                if state is None:
+                    return
+                state["count"] -= 1
+                if state["count"] > 0:
+                    return
+                func.set_user_instr_highlight(ea, state["previous"])
+                del self._highlight_state[key]
+        except Exception:
+            logger.exception("failed to update instruction highlight at 0x%x", ea)
+
+    def clear_all_highlights(self):
+        """restore every highlight we applied (called on teardown/reanalysis)"""
+        for (func_start, ea), state in list(self._highlight_state.items()):
+            funcs = self.bv.get_functions_containing(
+                func_start
+            ) or self.bv.get_functions_containing(ea)
+            if not funcs:
+                continue
+            try:
+                funcs[0].set_user_instr_highlight(ea, state["previous"])
+            except Exception:
+                logger.exception("failed to clear instruction highlight at 0x%x", ea)
+        self._highlight_state.clear()
 
     def setData(self, model_index, value, role):
         """set data at index by role"""

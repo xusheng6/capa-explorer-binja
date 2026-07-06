@@ -87,6 +87,18 @@ CAPA_RULESET_DOC_URL = "https://github.com/mandiant/capa/blob/master/doc/rules.m
 WIDGET_NAME = "capa explorer"
 
 
+def open_capa_sidebar() -> bool:
+    """activate the capa explorer sidebar in the active UI context"""
+    context = UIContext.activeContext()
+    if context is None:
+        return False
+    sidebar = context.sidebar()
+    if sidebar is None:
+        return False
+    sidebar.activate(WIDGET_NAME)
+    return True
+
+
 def _show_message(title: str, text: str):
     """show a message box on the main thread"""
 
@@ -215,6 +227,9 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         # lifecycle + re-entrancy guards for background analysis
         self._alive = True
         self._analysis_running = False
+        # bumped on each analyze; a background task whose token no longer
+        # matches discards its (now superseded) UI update.
+        self._analysis_task_token = 0
 
         self._build_interface()
 
@@ -222,6 +237,10 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
 
     def __del__(self):
         self._alive = False
+        try:
+            self.model_data.clear_all_highlights()
+        except Exception:
+            pass
         try:
             UIContext.unregisterNotification(self)
         except Exception:
@@ -541,9 +560,13 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
 
         by_function = self.view_show_results_by_function.isChecked()
         self._analysis_running = True
+        self._analysis_task_token += 1
+        token = self._analysis_task_token
         task = _BackgroundTask(
             "capa: analyzing program...",
-            lambda t: self._run_program_analysis(t, rule_path, from_cache, by_function),
+            lambda t: self._run_program_analysis(
+                t, rule_path, from_cache, by_function, token
+            ),
         )
         task.start()
 
@@ -553,6 +576,7 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         rule_path: Path,
         from_cache: bool,
         by_function: bool,
+        token: int,
     ):
         try:
 
@@ -589,6 +613,9 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
                     self.bv,
                     progress=lambda text: setattr(task, "progress", f"capa: {text}"),
                     is_cancelled=lambda: task.cancelled,
+                )
+                extractor.set_function_progress_total(
+                    len(tuple(extractor.get_functions()))
                 )
 
                 task.progress = "capa: loading rules"
@@ -639,7 +666,9 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
                 self.program_analysis_ruleset_cache = ruleset
 
             self._status_analysis = status
-            self._post(lambda: self._finish_program_analysis(status, by_function))
+            self._post(
+                lambda: self._finish_program_analysis(status, by_function, token)
+            )
         except UserCancelledError:
             logger.info("user cancelled analysis")
             self._post(lambda: self._fail_analysis("Click Analyze to get started..."))
@@ -650,7 +679,9 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         finally:
             self._analysis_running = False
 
-    def _finish_program_analysis(self, status: str, by_function: bool):
+    def _finish_program_analysis(self, status: str, by_function: bool, token=None):
+        if token is not None and token != self._analysis_task_token:
+            return
         try:
             assert self.resdoc_cache is not None
             self.model_data.render_capa_doc(self.resdoc_cache, by_function)
@@ -694,14 +725,16 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
         # address here and hand it to the worker.
         ea = helpers.get_current_address()
         self._analysis_running = True
+        self._analysis_task_token += 1
+        token = self._analysis_task_token
         task = _BackgroundTask(
             "capa: extracting function features...",
-            lambda t: self._run_function_analysis(t, rule_path, ea),
+            lambda t: self._run_function_analysis(t, rule_path, ea, token),
         )
         task.start()
 
     def _run_function_analysis(
-        self, task: _BackgroundTask, rule_path: Path, ea: Optional[int]
+        self, task: _BackgroundTask, rule_path: Path, ea: Optional[int], token: int
     ):
         try:
             if self.rulegen_ruleset_cache is None:
@@ -784,7 +817,11 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
             status = f"capa rules: {rule_path}"
             self._post(
                 lambda: self._finish_function_analysis(
-                    func_address, all_file_features, all_function_features, status
+                    func_address,
+                    all_file_features,
+                    all_function_features,
+                    status,
+                    token,
                 )
             )
         except UserCancelledError:
@@ -798,8 +835,10 @@ class CapaExplorerSidebarWidget(SidebarWidget, UIContextNotification):
             self._analysis_running = False
 
     def _finish_function_analysis(
-        self, func_address, all_file_features, all_function_features, status
+        self, func_address, all_file_features, all_function_features, status, token=None
     ):
+        if token is not None and token != self._analysis_task_token:
+            return
         try:
             self.view_rulegen_preview.load_preview_meta(
                 # func_address is an AbsoluteVirtualAddress (an int subclass), so
