@@ -19,7 +19,7 @@
     "pip": ["flare-capa>=9.4.0"]
   },
   "version": "1.0.0",
-  "author": "Mandiant (FLARE)",
+  "author": "Xusheng",
   "minimumbinaryninjaversion": 4000,
   "url": "https://github.com/xusheng6/capa-explorer-binja"
 }
